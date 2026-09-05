@@ -25,6 +25,37 @@ function pickField(bar: RawBar, candidates: string[]): unknown {
 }
 
 /**
+ * TSE securities codes are conventionally stored/queried as 5 characters
+ * (4-character code + a trailing check character, usually "0" for common
+ * stock — the same convention EDINET's secCode uses). Some J-Quants
+ * endpoints accept the bare 4-character code and some seem to expect the
+ * padded 5-character form, particularly for the newer alphanumeric codes
+ * (e.g. "285A"). We don't have primary-source confirmation either way, so
+ * try both rather than guessing.
+ */
+function candidateCodes(code: string): string[] {
+  if (code.length === 4) {
+    return [code, `${code}0`];
+  }
+  return [code];
+}
+
+async function fetchBarsForCode(code: string, apiKey: string): Promise<RawBar[]> {
+  const url = new URL(`${JQUANTS_BASE_URL}/equities/bars/daily`);
+  url.searchParams.set("code", code);
+
+  const response = await fetch(url.toString(), {
+    headers: { "x-api-key": apiKey },
+  });
+  if (!response.ok) {
+    throw new Error(`J-Quants equities/bars/daily returned status ${response.status}`);
+  }
+
+  const data = (await response.json()) as { data?: RawBar[] };
+  return data.data ?? [];
+}
+
+/**
  * Fetches the most recent daily close price for a stock code from J-Quants
  * API v2 (https://api.jquants.com/v2), which authenticates with a single
  * API key rather than the older mailaddress/password token flow. Returns
@@ -39,18 +70,14 @@ export async function fetchLatestStockPrice(code: string): Promise<StockPrice | 
   }
 
   try {
-    const url = new URL(`${JQUANTS_BASE_URL}/equities/bars/daily`);
-    url.searchParams.set("code", code);
-
-    const response = await fetch(url.toString(), {
-      headers: { "x-api-key": apiKey },
-    });
-    if (!response.ok) {
-      throw new Error(`J-Quants equities/bars/daily returned status ${response.status}`);
+    let bars: RawBar[] = [];
+    for (const candidate of candidateCodes(code)) {
+      bars = await fetchBarsForCode(candidate, apiKey);
+      if (bars.length > 0) {
+        break;
+      }
     }
 
-    const data = (await response.json()) as { data?: RawBar[] };
-    const bars = data.data ?? [];
     if (bars.length === 0) {
       return null;
     }
