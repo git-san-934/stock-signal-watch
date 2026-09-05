@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 
-const EDINET_BASE_URL = "https://disclosure.edinet-fsa.go.jp/api/v2";
+const EDINET_BASE_URL = "https://api.edinet-fsa.go.jp/api/v2";
 const DEFAULT_LOOKBACK_DAYS = 30;
 
 export interface DisclosureDocument {
