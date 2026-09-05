@@ -42,7 +42,19 @@ async function fetchDocumentsForDate(dateKey: string): Promise<RawEdinetDocument
       throw new Error(`EDINET documents.json returned status ${response.status}`);
     }
 
-    const data = (await response.json()) as { results?: RawEdinetDocument[] };
+    const data = (await response.json()) as {
+      metadata?: { status?: string; message?: string };
+      results?: RawEdinetDocument[];
+    };
+
+    // EDINET can respond 200 OK with the failure encoded in `metadata`
+    // (e.g. an invalid Subscription-Key) rather than an HTTP error status.
+    if (data.metadata?.status && data.metadata.status !== "200") {
+      throw new Error(
+        `EDINET documents.json reported status ${data.metadata.status}: ${data.metadata.message ?? "(no message)"}`,
+      );
+    }
+
     return data.results ?? [];
   } catch (error) {
     console.error(`EDINET fetchDocumentsForDate(${dateKey}) failed`, error);
