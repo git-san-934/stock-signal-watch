@@ -14,7 +14,7 @@
 | フレームワーク | Next.js (App Router) | フロントエンドとAPI Routesを1リポジトリで完結できる |
 | UIライブラリ | React + Tailwind CSS | レスポンシブUIを効率的に実装 |
 | ORM | Prisma | スキーマ駆動でデータモデルとマイグレーションを管理 |
-| データベース | PostgreSQL(本番) / SQLite(ローカル開発) | 個人利用規模で十分。Prisma経由で切替容易 |
+| データベース | PostgreSQL | Vercel等のNext.jsホスティングはサーバー内にファイルを保存し続けられない(サーバーレス)ため、SQLiteではなく外部のPostgreSQLに接続する。個人利用規模なので無料プランで十分 |
 | 非同期処理 | サーバーアクション/APIルート内の非同期実行 + ジョブステータス管理 | 追加のキュー基盤(Redis等)を持たず調査処理の実行状態をDBで管理し、運用負荷を抑える |
 | 外部検索連携 | Web検索API・YouTube Data API・SNS APIをアダプタ経由で呼び出し | プロバイダ差し替え・キー未設定時のモック動作を可能にする |
 | 株価データ連携 | J-Quants API(JPX提供、無料登録) | 証券会社口座を持たないユーザーでも、無料登録のみで日本株の日次株価を取得できる |
@@ -57,7 +57,15 @@
 - 調査実行(Web/YouTube/SNS検索〜シグナル判定)は非同期処理とし、画面をブロックしない。処理中はステータス表示を行う
 - 監視銘柄数は数社〜十数社程度を想定した設計とし、大規模同時アクセスは考慮しない(個人利用のため)
 
-## 5. デプロイ構成(概要)
+## 5. デプロイ構成
 
-- ホスティング: Vercel等のNext.js対応ホスティング、またはDocker化してのセルフホストのいずれかを想定(初期実装ではローカル開発環境での動作を優先し、デプロイ先は実装後に確定してもよい)
-- データベース: マネージドPostgreSQL(例: Supabase, Neon等)を想定
+ローカルにフォルダを用意せず、Webブラウザだけで公開・運用できることを優先する。
+
+- ホスティング: **Vercel**を採用する。GitHubリポジトリを連携するだけでビルド・公開まで完了し、環境変数の設定もVercelのWeb画面上で行えるため、ローカル環境の構築が不要
+- データベース: Vercelの「Storage」機能から追加できるマネージドPostgreSQL(Neon等)を利用する。追加すると`DATABASE_URL`がVercelの環境変数に自動的に設定される
+- デプロイ手順の概要:
+  1. VercelにGitHubアカウントでサインアップし、本リポジトリをImportする
+  2. Vercelプロジェクトの「Storage」タブからPostgreSQLを追加する(`DATABASE_URL`が自動設定される)
+  3. Vercelプロジェクトの「Settings → Environment Variables」から、J-Quants・EDINET等の認証情報(`.env.example`参照)を設定する
+  4. デプロイを実行する。ビルド時に `prisma migrate deploy` を実行し、データベースにテーブルを作成する(`package.json` の `build` スクリプトに含む)
+  5. 発行されたURL(`https://xxxxx.vercel.app`)にアクセスすれば利用開始できる
