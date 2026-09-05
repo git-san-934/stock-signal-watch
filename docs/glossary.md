@@ -15,11 +15,14 @@
 | 判定方向 | Direction | シグナルの増減方向。「増(Up)」「減(Down)」「不明(Unknown)」の3値 |
 | 根拠情報 | Evidence | シグナル判定の裏付けとなる個別の情報源(検索結果1件分) |
 | 情報源種別 | SourceType | 根拠情報の取得元区分。「Web」「YouTube」「SNS」 |
-| 株価・財務データ | PriceFinancialData | 証券会社APIから取得済みの株価・財務指標データ |
+| 株価・財務データ | PriceFinancialData | J-Quants API(株価)・EDINET API(開示書類一覧)から取得したデータ。いずれも証券会社口座は不要 |
+| 開示書類 | DisclosureDocument | EDINETで取得できる有価証券報告書・決算短信等の個別書類(タイトル・提出日時・書類種別・リンク) |
 | 調査履歴 | InvestigationHistory | ある銘柄について過去に実行した調査(Investigation)の時系列一覧 |
 | 半自動調査 | Semi-automatic Investigation | ユーザーが銘柄を指定した契機でシステムが検索・判定まで自動実行するが、実行自体はユーザー操作を起点とする調査方式 |
 | 検索プロバイダ | SearchProvider | Web検索・YouTube検索・SNS検索など、外部情報源への検索処理を抽象化したアダプタ |
 | モックプロバイダ | MockSearchProvider | 外部APIキー未設定時に、開発・検証のためダミーの検索結果を返すプロバイダ実装 |
+| 株価クライアント | JQuantsClient | J-Quants APIで銘柄の直近株価を取得するクライアント。認証情報未設定時はnullを返す |
+| 開示書類クライアント | EdinetClient | EDINET APIで銘柄の直近開示書類一覧を取得するクライアント。日付単位の全銘柄共有キャッシュ(EdinetDailyDocuments)を介して証券コードで絞り込む |
 
 ## 2. UI/UX用語
 
@@ -30,6 +33,7 @@
 | シグナル要約カード | SignalSummaryCard | 「数量↑/↓」「単価↑/↓」の判定と根拠リンクをまとめて表示するUI部品 |
 | 調査履歴一覧画面 | InvestigationHistoryView | 銘柄ごとの過去の調査(Investigation)を時系列に一覧表示する画面 |
 | 調査実行操作 | InvestigationTriggerControl | ユーザーが調査(Investigation)を開始するための操作UI(ボタン等) |
+| データ更新操作 | MarketDataSyncControl | ユーザーが株価・開示書類データの取得を開始するための操作UI(ボタン等) |
 
 ## 3. 英語・日本語対応表(補足)
 
@@ -40,7 +44,8 @@
 | Investigation | 調査 | `status`(実行中/完了/失敗)を持つ |
 | Signal | シグナル | `signalType`, `direction`, `summary` を持つ |
 | Evidence | 根拠情報 | `sourceType`, `url`, `title`, `snippet`, `publishedAt` を持つ |
-| PriceFinancialData | 株価・財務データ | 証券会社API取得済みデータの読み込み結果 |
+| PriceFinancialData | 株価・財務データ | `price`/`priceSource`(J-Quants)、`disclosureDocuments`/`disclosureSource`(EDINET)を持つ。いずれも未取得の場合はnull |
+| EdinetDailyDocuments | EDINET日次書類キャッシュ | EDINETの日付単位の書類一覧を全銘柄で共有キャッシュする内部エンティティ |
 
 ## 4. コード上の命名規則との関係
 

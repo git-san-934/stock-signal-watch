@@ -22,7 +22,8 @@ graph TD
         WEBSEARCH[Web検索API]
         YOUTUBE[YouTube検索/データAPI]
         SNS[SNS API]
-        BROKER[証券会社API<br/>株価・財務データ取得済み]
+        JQUANTS[J-Quants API<br/>株価データ・無料登録]
+        EDINET[EDINET API<br/>開示書類一覧・無料登録]
     end
 
     UI -->|銘柄指定・調査依頼| API
@@ -31,12 +32,13 @@ graph TD
     ORCH -->|検索クエリ| YOUTUBE
     ORCH -->|検索クエリ| SNS
     ORCH -->|判定結果・根拠を保存| STORE
-    API -->|株価・財務データ取得| BROKER
+    API -->|株価取得| JQUANTS
+    API -->|開示書類一覧取得(日付単位・キャッシュ)| EDINET
     API -->|調査結果・履歴取得| STORE
     API -->|表示データ| UI
 ```
 
-- 証券会社APIから取得済みの株価・財務データは、既存の取得済みデータ(バッチ等で取り込まれた結果)を読み込む前提とし、本アプリが証券会社APIと直接やり取りする方式は問わない(取得済みデータソースとの連携方式は `architecture.md` で確定する)。
+- 株価・開示情報は、証券会社の口座を持たないユーザーでも利用できる無料の公的データソース(J-Quants API・EDINET API)から取得する。両APIとも認証情報は無料登録で取得できるが、未設定の場合は「未取得」として表示しアプリの動作は継続する(連携方式・制約の詳細は `architecture.md` で確定する)。
 - Web/YouTube/SNSの調査は「半自動調査」であり、ユーザーが銘柄を指定した契機で実行される。
 
 ## 2. 機能ごとのアーキテクチャ
@@ -59,7 +61,9 @@ graph TD
 
 ### 2.3 株価・財務データ表示
 
-- 証券会社APIから取得済みの株価・財務データを銘柄コードで紐づけて表示する。
+- J-Quants APIから取得した直近の株価(終値)と、EDINET APIから取得した直近の開示書類一覧(有価証券報告書・決算短信等のタイトル・提出日時・リンク)を、銘柄コードで紐づけて表示する。
+- ユーザーが「データを更新」を実行した契機で取得する(調査実行とは独立した操作)。
+- いずれかのAPI認証情報が未設定、または取得に失敗した場合は「未取得」であることを明示し、他の情報の表示・操作は妨げない。
 - シグナル要約と同一画面(同一ビュー)に並べて表示し、定性・定量を並列比較できるようにする。
 
 ### 2.4 調査履歴の蓄積・時系列比較
@@ -123,12 +127,21 @@ erDiagram
     PRICE_FINANCIAL_DATA {
         string stock_id FK
         datetime data_date
-        decimal price "株価"
-        json financial_metrics "財務指標(証券会社API取得済み)"
+        decimal price "株価(J-Quants、未取得時null)"
+        string price_source "取得元(jquants等、未取得時null)"
+        json disclosure_documents "開示書類一覧(EDINET、未取得時null)"
+        string disclosure_source "取得元(edinet等、未取得時null)"
+    }
+
+    EDINET_DAILY_DOCUMENTS {
+        string date PK "取得対象日"
+        json documents "当日の全開示書類一覧(全銘柄共通キャッシュ)"
+        datetime fetched_at
     }
 ```
 
-- `PRICE_FINANCIAL_DATA` は証券会社APIから取得済みのデータを読み込んだ結果を表す論理エンティティであり、本アプリが独自に管理する項目ではない。
+- `PRICE_FINANCIAL_DATA` はJ-Quants API(株価)・EDINET API(開示書類一覧)から取得した結果を保持する論理エンティティである。いずれか一方、または両方が未取得(認証情報未設定・取得失敗)の場合は該当フィールドが空になる。
+- `EDINET_DAILY_DOCUMENTS` はEDINETの日付単位の書類一覧を全銘柄で共有キャッシュするためのエンティティであり、`STOCK` とは直接の関連を持たない(取得時に `secCode` で絞り込んで利用する)。
 - `INVESTIGATION` は調査1回分の実行単位、`SIGNAL` はその調査で得られた「数量」「単価」それぞれの判定、`EVIDENCE` は判定の根拠となった個々の情報源を表す。
 
 ## 4. コンポーネント設計
@@ -142,6 +155,7 @@ erDiagram
 | InvestigationHistoryView | 調査履歴の時系列一覧・過去判定の確認 |
 | SignalSummaryCard | 「数量↑/↓」「単価↑/↓」の判定と根拠リンクの表示 |
 | InvestigationTriggerControl | 銘柄指定・調査実行の操作 |
+| MarketDataSyncControl | 株価・開示書類データの更新操作 |
 
 ### 4.2 バックエンド
 
@@ -150,7 +164,9 @@ erDiagram
 | WatchlistService | ウォッチリストの登録・取得・削除 |
 | InvestigationOrchestrator | Web/YouTube/SNS調査の実行制御、非同期処理管理 |
 | SignalExtractionService | 検索結果からのシグナル判定・要約生成 |
-| MarketDataReader | 証券会社API取得済みの株価・財務データの読み込み |
+| JQuantsClient | J-Quants APIによる株価データ取得(未設定時はnull) |
+| EdinetClient | EDINET APIによる開示書類一覧取得。日付単位の全銘柄共有キャッシュを持ち、証券コードで絞り込む |
+| MarketDataSyncService | JQuantsClient・EdinetClientの呼び出しと結果の永続化 |
 | InvestigationHistoryService | 調査結果・履歴の永続化と取得 |
 
 ## 5. ユースケース図
@@ -201,9 +217,9 @@ graph LR
 |  単価: → 不明                  |
 |   根拠: なし                    |
 +-------------------------------+
-| 株価・財務データ                 |
-|  株価チャート                   |
-|  主要財務指標                   |
+| 株価・財務データ [更新] ボタン    |
+|  株価: xxx円(J-Quants)         |
+|  開示書類: [有報 2026/xx] ...   |
 +-------------------------------+
 | [ 調査履歴を見る ] リンク         |
 +-------------------------------+
@@ -224,8 +240,9 @@ graph LR
 | `/stocks/{stockId}/investigations` | POST | 当該銘柄のシグナル調査を実行(非同期) |
 | `/stocks/{stockId}/investigations` | GET | 当該銘柄の調査履歴一覧を取得(時系列) |
 | `/investigations/{investigationId}` | GET | 調査結果詳細(シグナル・根拠一覧)を取得 |
+| `/stocks/{stockId}/market-data` | POST | J-Quants(株価)・EDINET(開示書類一覧)からデータを取得・更新 |
 
 ## 9. 影響範囲・前提
 
 - 本書は初回実装前の設計であり、実装時の技術的制約により詳細が変わる場合は `architecture.md` および本書を更新する。
-- 証券会社APIとの実連携方式(バッチ取り込み/直接呼び出し等)は未確定であり、`architecture.md` で技術的制約とあわせて確定する。
+- 株価・開示情報の取得はJ-Quants API・EDINET APIを用いる(`.steering/20260905-market-data-source/` で証券会社口座を前提としない方式に変更)。EDINETの検索制約(日付単位走査・日次キャッシュ)は `architecture.md` の技術的制約に明記する。
