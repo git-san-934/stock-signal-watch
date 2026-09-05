@@ -16,7 +16,7 @@
 | 根拠情報 | Evidence | シグナル判定の裏付けとなる個別の情報源(検索結果1件分) |
 | 情報源種別 | SourceType | 根拠情報の取得元区分。「Web」「YouTube」「SNS」 |
 | 株価・財務データ | PriceFinancialData | J-Quants API(株価)・EDINET API(開示書類一覧)から取得したデータ。いずれも証券会社口座は不要 |
-| 開示書類 | DisclosureDocument | EDINETで取得できる有価証券報告書・決算短信等の個別書類(タイトル・提出日時・書類種別・リンク) |
+| 開示書類 | DisclosureDocument | EDINETで取得できる有価証券報告書・四半期報告書・臨時報告書等の個別書類(タイトル・提出日時・書類種別・リンク) |
 | 調査履歴 | InvestigationHistory | ある銘柄について過去に実行した調査(Investigation)の時系列一覧 |
 | 半自動調査 | Semi-automatic Investigation | ユーザーが銘柄を指定した契機でシステムが検索・判定まで自動実行するが、実行自体はユーザー操作を起点とする調査方式 |
 | 検索プロバイダ | SearchProvider | Web検索・YouTube検索・SNS検索など、外部情報源への検索処理を抽象化したアダプタ |
