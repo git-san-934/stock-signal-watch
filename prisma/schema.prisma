@@ -1,0 +1,95 @@
+// Prisma schema — see docs/functional-design.md (3. データモデル定義) for the domain model this implements.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Stock {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  watchlistItem      WatchlistItem?
+  investigations      Investigation[]
+  priceFinancialData PriceFinancialData[]
+
+  @@map("stocks")
+}
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  stockId      String   @unique
+  stock        Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  registeredAt DateTime @default(now())
+
+  @@map("watchlist_items")
+}
+
+model Investigation {
+  id         String   @id @default(cuid())
+  stockId    String
+  stock      Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  executedAt DateTime @default(now())
+  status     String
+
+  signals Signal[]
+
+  @@map("investigations")
+}
+
+model Signal {
+  id              String   @id @default(cuid())
+  investigationId String
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  signalType      String
+  direction       String
+  summary         String
+
+  evidences Evidence[]
+
+  @@map("signals")
+}
+
+model Evidence {
+  id          String    @id @default(cuid())
+  signalId    String
+  signal      Signal    @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  sourceType  String
+  url         String
+  title       String
+  snippet     String
+  publishedAt DateTime?
+
+  @@map("evidences")
+}
+
+model PriceFinancialData {
+  id                  String   @id @default(cuid())
+  stockId             String
+  stock               Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  dataDate            DateTime
+  price               Float?
+  priceSource         String?
+  disclosureDocuments Json?
+  disclosureSource    String?
+
+  @@unique([stockId, dataDate])
+  @@map("price_financial_data")
+}
+
+// EDINETの日次書類一覧は全銘柄で共通のため、日付単位でキャッシュして重複取得を避ける
+// (EDINETには企業名・証券コードによる横断検索APIが存在しないため、日付走査が必要)。
+model EdinetDailyDocuments {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  documents Json
+  fetchedAt DateTime @default(now())
+
+  @@map("edinet_daily_documents")
+}
