@@ -2,25 +2,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// 実際の株価・開示書類はJ-Quants/EDINET(未設定時はアプリ上で「未取得」表示)から
+// 取得するため、ここでは架空の数値は投入せず、銘柄マスタとウォッチリスト登録のみ行う。
 const SAMPLE_STOCKS = [
-  {
-    code: "7203",
-    name: "トヨタ自動車",
-    price: 2980,
-    financialMetrics: { per: 10.2, pbr: 1.1, dividendYield: 3.1 },
-  },
-  {
-    code: "6758",
-    name: "ソニーグループ",
-    price: 3520,
-    financialMetrics: { per: 18.4, pbr: 2.3, dividendYield: 0.7 },
-  },
-  {
-    code: "9983",
-    name: "ファーストリテイリング",
-    price: 45230,
-    financialMetrics: { per: 34.1, pbr: 8.9, dividendYield: 0.9 },
-  },
+  { code: "7203", name: "トヨタ自動車" },
+  { code: "6758", name: "ソニーグループ" },
+  { code: "9983", name: "ファーストリテイリング" },
 ];
 
 async function main() {
@@ -35,20 +22,6 @@ async function main() {
       where: { stockId: stock.id },
       update: {},
       create: { stockId: stock.id },
-    });
-
-    await prisma.priceFinancialData.upsert({
-      where: { stockId_dataDate: { stockId: stock.id, dataDate: new Date("2026-09-01") } },
-      update: {
-        price: sample.price,
-        financialMetrics: sample.financialMetrics,
-      },
-      create: {
-        stockId: stock.id,
-        dataDate: new Date("2026-09-01"),
-        price: sample.price,
-        financialMetrics: sample.financialMetrics,
-      },
     });
   }
 }

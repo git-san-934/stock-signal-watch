@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SignalSummaryCard } from "./SignalSummaryCard";
+import { MarketDataSyncControl } from "./MarketDataSyncControl";
 import { InvestigationTriggerControl } from "@/features/investigation/components/InvestigationTriggerControl";
 
 interface Evidence {
@@ -24,11 +25,21 @@ interface Investigation {
   signals: Signal[];
 }
 
+interface DisclosureDocument {
+  docId: string;
+  filerName: string;
+  docDescription: string;
+  docTypeCode: string;
+  submittedAt: string;
+}
+
 interface PriceFinancialData {
   id: string;
   dataDate: Date;
-  price: number;
-  financialMetrics: unknown;
+  price: number | null;
+  priceSource: string | null;
+  disclosureDocuments: unknown;
+  disclosureSource: string | null;
 }
 
 interface StockDetailViewProps {
@@ -44,10 +55,9 @@ interface StockDetailViewProps {
 export function StockDetailView({ stock }: StockDetailViewProps) {
   const latestInvestigation = stock.investigations[0];
   const latestPriceData = stock.priceFinancialData[0];
-  const financialMetrics =
-    latestPriceData && typeof latestPriceData.financialMetrics === "object"
-      ? (latestPriceData.financialMetrics as Record<string, number>)
-      : null;
+  const disclosureDocuments = Array.isArray(latestPriceData?.disclosureDocuments)
+    ? (latestPriceData.disclosureDocuments as DisclosureDocument[])
+    : [];
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
@@ -85,29 +95,44 @@ export function StockDetailView({ stock }: StockDetailViewProps) {
         )}
       </section>
 
-      <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-500">株価・財務データ</h2>
-        {latestPriceData ? (
-          <div className="flex flex-col gap-1 text-sm">
-            <p>
-              株価: <span className="font-medium">{latestPriceData.price.toLocaleString()}円</span>{" "}
+      <section className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-500">株価・財務データ</h2>
+        </div>
+        <MarketDataSyncControl stockId={stock.id} />
+
+        <div className="text-sm">
+          <span className="text-zinc-500">株価(J-Quants): </span>
+          {latestPriceData?.price != null ? (
+            <>
+              <span className="font-medium">{latestPriceData.price.toLocaleString()}円</span>{" "}
               <span className="text-zinc-400">
                 ({new Date(latestPriceData.dataDate).toLocaleDateString("ja-JP")}時点)
               </span>
-            </p>
-            {financialMetrics && (
-              <ul className="mt-1 flex flex-col gap-0.5 text-zinc-600">
-                {Object.entries(financialMetrics).map(([key, value]) => (
-                  <li key={key}>
-                    {key}: {value}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-400">データがありません</p>
-        )}
+            </>
+          ) : (
+            <span className="text-zinc-400">未取得</span>
+          )}
+        </div>
+
+        <div className="text-sm">
+          <p className="text-zinc-500">開示書類(EDINET):</p>
+          {disclosureDocuments.length > 0 ? (
+            <ul className="mt-1 flex flex-col gap-1">
+              {disclosureDocuments.map((doc) => (
+                <li key={doc.docId} className="text-zinc-700">
+                  {doc.docDescription}
+                  <span className="text-zinc-400">
+                    {" "}
+                    ({new Date(doc.submittedAt).toLocaleDateString("ja-JP")})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-zinc-400">未取得</p>
+          )}
+        </div>
       </section>
 
       <Link

@@ -70,13 +70,26 @@ model Evidence {
 }
 
 model PriceFinancialData {
-  id               String   @id @default(cuid())
-  stockId          String
-  stock            Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
-  dataDate         DateTime
-  price            Float
-  financialMetrics Json
+  id                  String   @id @default(cuid())
+  stockId             String
+  stock               Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  dataDate            DateTime
+  price               Float?
+  priceSource         String?
+  disclosureDocuments Json?
+  disclosureSource    String?
 
   @@unique([stockId, dataDate])
   @@map("price_financial_data")
+}
+
+// EDINETの日次書類一覧は全銘柄で共通のため、日付単位でキャッシュして重複取得を避ける
+// (EDINETには企業名・証券コードによる横断検索APIが存在しないため、日付走査が必要)。
+model EdinetDailyDocuments {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  documents Json
+  fetchedAt DateTime @default(now())
+
+  @@map("edinet_daily_documents")
 }
